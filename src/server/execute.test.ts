@@ -2,9 +2,10 @@ import * as assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
-  formatSessionDisplayId,
+  HERMES_SESSION_ID_PATTERN,
   parseHermesOutput,
 } from "./execute.js";
+import { sessionCodec } from "./index.js";
 
 describe("parseHermesOutput", () => {
   it("extracts the full quiet-mode Hermes session id", () => {
@@ -37,8 +38,20 @@ describe("parseHermesOutput", () => {
   });
 });
 
-describe("formatSessionDisplayId", () => {
-  it("marks shortened display ids as non-executable", () => {
-    assert.equal(formatSessionDisplayId("20260513_144718_6b34d7"), "20260513_144718_...");
+describe("sessionCodec", () => {
+  it("rejects invalid persisted resume ids", () => {
+    assert.equal(sessionCodec.serialize({ sessionId: "from" }), null);
+    assert.equal(sessionCodec.serialize({ sessionId: "20260513_144718_" }), null);
+    assert.equal(sessionCodec.deserialize({ sessionId: "from" }), null);
+    assert.equal(sessionCodec.deserialize({ session_id: "20260513_144718_" }), null);
+  });
+
+  it("keeps full Hermes session ids", () => {
+    const valid = "20260513_144718_6b34d7";
+
+    assert.match(valid, HERMES_SESSION_ID_PATTERN);
+    assert.deepEqual(sessionCodec.serialize({ sessionId: valid }), { sessionId: valid });
+    assert.deepEqual(sessionCodec.deserialize({ session_id: valid }), { sessionId: valid });
+    assert.equal(sessionCodec.getDisplayId?.({ sessionId: valid }), valid);
   });
 });

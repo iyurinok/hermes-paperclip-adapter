@@ -195,7 +195,7 @@ function buildPrompt(
 /** Regex to extract session ID from Hermes quiet-mode output: "session_id: <id>" */
 const SESSION_ID_REGEX = /^session_id:\s*(\S+)\s*$/m;
 
-const HERMES_SESSION_ID_PATTERN = /^\d{8}_\d{6}_[a-zA-Z0-9]{6,}$/;
+export const HERMES_SESSION_ID_PATTERN = /^\d{8}_\d{6}_[a-zA-Z0-9]{6,}$/;
 
 const HERMES_SESSION_DISPLAY_LENGTH = 16;
 

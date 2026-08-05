@@ -82,6 +82,8 @@ In the Paperclip UI or via API, create an agent with adapter type `hermes_local`
   "name": "Hermes Engineer",
   "adapterType": "hermes_local",
   "adapterConfig": {
+    "bridgeEnabled": true,
+    "bridgeMode": "cli",
     "model": "anthropic/claude-sonnet-4",
     "maxIterations": 50,
     "timeoutSec": 300,
@@ -104,8 +106,12 @@ Create issues in Paperclip and assign them to your Hermes agent. On each heartbe
 
 ### Core
 
+The Paperclip-to-Hermes bridge is opt-in. With `bridgeEnabled` unset or false, the adapter logs that the bridge is disabled and exits without spawning Hermes.
+
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
+| `bridgeEnabled` | boolean | `false` | Explicit kill-switch. Set to `true` or set `PAPERCLIP_HERMES_BRIDGE_ENABLED=true` to allow outbound Hermes calls. |
+| `bridgeMode` | string | `cli` | Transport mode for invoking Hermes. Currently only `cli` is supported; can also be set with `PAPERCLIP_HERMES_BRIDGE_MODE`. |
 | `model` | string | `anthropic/claude-sonnet-4` | Model in `provider/model` format |
 | `provider` | string | *(auto-detected)* | API provider: `auto`, `openrouter`, `nous`, `openai-codex`, `zai`, `kimi-coding`, `minimax`, `minimax-cn` |
 | `timeoutSec` | number | `300` | Execution timeout in seconds |

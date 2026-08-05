@@ -36,7 +36,12 @@ import {
   DEFAULT_TIMEOUT_SEC,
   DEFAULT_GRACE_SEC,
   DEFAULT_MODEL,
+  DEFAULT_HERMES_BRIDGE_MODE,
+  HERMES_BRIDGE_ENABLED_ENV,
+  HERMES_BRIDGE_MODE_ENV,
+  HERMES_BRIDGE_MODES,
   VALID_PROVIDERS,
+  type HermesBridgeMode,
 } from "../shared/constants.js";
 
 import {
@@ -57,10 +62,60 @@ function cfgNumber(v: unknown): number | undefined {
 function cfgBoolean(v: unknown): boolean | undefined {
   return typeof v === "boolean" ? v : undefined;
 }
+function cfgBooleanLike(v: unknown): boolean | undefined {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v !== "string") return undefined;
+  const normalized = v.trim().toLowerCase();
+  if (["1", "true", "yes", "on", "enabled"].includes(normalized)) return true;
+  if (["0", "false", "no", "off", "disabled", ""].includes(normalized)) return false;
+  return undefined;
+}
 function cfgStringArray(v: unknown): string[] | undefined {
   return Array.isArray(v) && v.every((i) => typeof i === "string")
     ? (v as string[])
     : undefined;
+}
+
+export interface BridgeGate {
+  enabled: boolean;
+  mode: HermesBridgeMode;
+}
+
+export function resolveBridgeGate(config: Record<string, unknown>): BridgeGate {
+  const enabled =
+    cfgBooleanLike(config.bridgeEnabled) ??
+    cfgBooleanLike(process.env[HERMES_BRIDGE_ENABLED_ENV]) ??
+    false;
+
+  const configuredMode = (
+    cfgString(config.bridgeMode) ??
+    cfgString(config.transportMode) ??
+    process.env[HERMES_BRIDGE_MODE_ENV] ??
+    DEFAULT_HERMES_BRIDGE_MODE
+  ).toLowerCase();
+  const mode = HERMES_BRIDGE_MODES.includes(configuredMode as HermesBridgeMode)
+    ? (configuredMode as HermesBridgeMode)
+    : DEFAULT_HERMES_BRIDGE_MODE;
+
+  return { enabled, mode };
+}
+
+function disabledExecutionResult(mode: HermesBridgeMode): AdapterExecutionResult {
+  return {
+    exitCode: 0,
+    signal: null,
+    timedOut: false,
+    provider: null,
+    model: null,
+    summary: "Paperclip-to-Hermes bridge disabled by configuration.",
+    resultJson: {
+      bridge_enabled: false,
+      bridge_mode: mode,
+      skipped: true,
+      reason: "disabled",
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -87,12 +142,12 @@ Title: {{taskTitle}}
 ## Workflow
 
 1. Work on the task using your tools
-2. When done, mark the issue as completed:
-   \`curl -s -X PATCH -H "Authorization: Bearer $PAPERCLIP_API_KEY" "{{paperclipApiUrl}}/issues/{{taskId}}" -H "Content-Type: application/json" -d '{"status":"done"}'\`
-3. Post a completion comment on the issue summarizing what you did:
-   \`curl -s -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" "{{paperclipApiUrl}}/issues/{{taskId}}/comments" -H "Content-Type: application/json" -d '{"body":"DONE: <your summary here>"}'\`
-4. If this issue has a parent (check the issue body or comments for references like TRA-XX), post a brief notification on the parent issue so the parent owner knows:
-   \`curl -s -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" "{{paperclipApiUrl}}/issues/PARENT_ISSUE_ID/comments" -H "Content-Type: application/json" -d '{"body":"{{agentName}} completed {{taskId}}. Summary: <brief>"}'\`
+2. When done, mark the issue as completed (include X-Paperclip-Run-Id on mutations):
+   \`curl -s -X PATCH -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '{"status":"done"}' "{{paperclipApiUrl}}/issues/{{taskId}}"\`
+3. Post a completion comment (include X-Paperclip-Run-Id on mutations):
+   \`curl -s -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '{"body":"DONE: <your summary here>"}' "{{paperclipApiUrl}}/issues/{{taskId}}/comments"\`
+4. If this issue has a parent (check the issue body or comments for references like TRA-XX), post a brief notification on the parent issue so the parent owner knows (include X-Paperclip-Run-Id on mutations):
+   \`curl -s -X POST -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID" -H "Content-Type: application/json" -d '{"body":"{{agentName}} completed {{taskId}}. Summary: <brief>"}' "{{paperclipApiUrl}}/issues/PARENT_ISSUE_ID/comments"\`
 {{/taskId}}
 
 {{#commentId}}
@@ -339,7 +394,18 @@ export function parseHermesOutput(stdout: string, stderr: string): ParsedOutput 
 export async function execute(
   ctx: AdapterExecutionContext,
 ): Promise<AdapterExecutionResult> {
-  const config = (ctx.config ?? ctx.agent?.adapterConfig ?? {}) as Record<string, unknown>;
+  const config = {
+    ...((ctx.agent?.adapterConfig ?? {}) as Record<string, unknown>),
+    ...((ctx.config ?? {}) as Record<string, unknown>),
+  };
+  const bridgeGate = resolveBridgeGate(config);
+  if (!bridgeGate.enabled) {
+    await ctx.onLog(
+      "stdout",
+      `[hermes] Paperclip-to-Hermes bridge disabled (set bridgeEnabled=true or ${HERMES_BRIDGE_ENABLED_ENV}=true to enable). No Hermes call attempted.\n`,
+    );
+    return disabledExecutionResult(bridgeGate.mode);
+  }
 
   // ── Resolve configuration ──────────────────────────────────────────────
   const hermesCmd = cfgString(config.hermesCommand) || HERMES_CLI;
@@ -464,7 +530,7 @@ export async function execute(
   // ── Log start ──────────────────────────────────────────────────────────
   await ctx.onLog(
     "stdout",
-    `[hermes] Starting Hermes Agent (model=${model}, provider=${resolvedProvider} [${resolvedFrom}], timeout=${timeoutSec}s${maxTurns ? `, max_turns=${maxTurns}` : ""})\n`,
+    `[hermes] Starting Hermes Agent (bridge_mode=${bridgeGate.mode}, model=${model}, provider=${resolvedProvider} [${resolvedFrom}], timeout=${timeoutSec}s${maxTurns ? `, max_turns=${maxTurns}` : ""})\n`,
   );
   if (prevSessionId) {
     await ctx.onLog(
@@ -548,6 +614,8 @@ export async function execute(
     session_id: parsed.sessionId || null,
     usage: parsed.usage || null,
     cost_usd: parsed.costUsd ?? null,
+    bridge_enabled: true,
+    bridge_mode: bridgeGate.mode,
   };
 
   // Store session ID for next run

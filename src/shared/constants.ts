@@ -11,6 +11,20 @@ export const ADAPTER_LABEL = "Hermes Agent";
 /** Default CLI binary name. */
 export const HERMES_CLI = "hermes";
 
+/** Env var that explicitly enables the Paperclip -> Hermes bridge. */
+export const HERMES_BRIDGE_ENABLED_ENV = "PAPERCLIP_HERMES_BRIDGE_ENABLED";
+
+/** Env var that selects how the bridge invokes Hermes. */
+export const HERMES_BRIDGE_MODE_ENV = "PAPERCLIP_HERMES_BRIDGE_MODE";
+
+/** Supported bridge transport modes. */
+export const HERMES_BRIDGE_MODES = ["cli"] as const;
+
+export type HermesBridgeMode = (typeof HERMES_BRIDGE_MODES)[number];
+
+/** Default bridge transport when the adapter is explicitly enabled. */
+export const DEFAULT_HERMES_BRIDGE_MODE: HermesBridgeMode = "cli";
+
 /** Default timeout for a single execution run (seconds). */
 export const DEFAULT_TIMEOUT_SEC = 1800;
 
@@ -18,7 +32,7 @@ export const DEFAULT_TIMEOUT_SEC = 1800;
 export const DEFAULT_GRACE_SEC = 10;
 
 /** Default model to use if none specified. */
-export const DEFAULT_MODEL = "anthropic/claude-sonnet-4";
+export const DEFAULT_MODEL = "gpt-5.5";
 
 /**
  * Valid --provider choices for the hermes CLI.

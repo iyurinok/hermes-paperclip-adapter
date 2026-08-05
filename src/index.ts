@@ -41,8 +41,10 @@ tools, persistent memory, session persistence, skills, and MCP support.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| model | string | (Hermes configured default) | Optional explicit model in provider/model format. Leave blank to use Hermes's configured default model. |
+| model | string | gpt-5.5 | Optional explicit model in provider/model format. Leave blank to use Hermes's configured default model. |
 | provider | string | (auto) | API provider: auto, openrouter, nous, openai-codex, zai, kimi-coding, minimax, minimax-cn. Usually not needed — Hermes auto-detects from model name. |
+| bridgeEnabled | boolean | false | Explicit kill-switch for the Paperclip-to-Hermes bridge. Hermes is not invoked until this is true or PAPERCLIP_HERMES_BRIDGE_ENABLED is truthy. |
+| bridgeMode | string | cli | Transport mode for the bridge. Currently only cli is supported. Can also be set with PAPERCLIP_HERMES_BRIDGE_MODE. |
 | timeoutSec | number | 300 | Execution timeout in seconds |
 | graceSec | number | 10 | Grace period after SIGTERM before SIGKILL |
 

@@ -6,3 +6,6 @@ dist/
 !.env.example
 coverage/
 .DS_Store
+
+# Local npm pack artifacts
+*.tgz

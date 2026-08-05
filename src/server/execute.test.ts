@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 
 import {
   HERMES_SESSION_ID_PATTERN,
+  execute,
   parseHermesOutput,
+  resolveBridgeGate,
 } from "./execute.js";
 import { sessionCodec } from "./index.js";
 
@@ -53,5 +55,54 @@ describe("sessionCodec", () => {
     assert.deepEqual(sessionCodec.serialize({ sessionId: valid }), { sessionId: valid });
     assert.deepEqual(sessionCodec.deserialize({ session_id: valid }), { sessionId: valid });
     assert.equal(sessionCodec.getDisplayId?.({ sessionId: valid }), valid);
+  });
+});
+
+describe("execute bridge gate", () => {
+  it("returns before starting Hermes when the bridge is disabled", async () => {
+    const logs: string[] = [];
+    const result = await execute({
+      runId: "run_disabled",
+      agent: {
+        id: "agent_1",
+        companyId: "company_1",
+        name: "Hermes",
+        adapterType: "hermes_local",
+        adapterConfig: { bridgeEnabled: false, hermesCommand: "/missing/hermes" },
+      },
+      runtime: { sessionId: null, sessionParams: null, sessionDisplayId: null, taskKey: null },
+      config: {},
+      context: {},
+      onLog: async (_stream, chunk) => {
+        logs.push(chunk);
+      },
+    });
+
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.resultJson?.bridge_enabled, false);
+    assert.match(logs.join(""), /bridge disabled/);
+    assert.match(logs.join(""), /No Hermes call attempted/);
+  });
+});
+
+describe("resolveBridgeGate", () => {
+  it("keeps the bridge disabled by default", () => {
+    assert.deepEqual(resolveBridgeGate({}), { enabled: false, mode: "cli" });
+  });
+
+  it("accepts explicit config and environment enable flags", () => {
+    assert.equal(resolveBridgeGate({ bridgeEnabled: true }).enabled, true);
+
+    const previous = process.env.PAPERCLIP_HERMES_BRIDGE_ENABLED;
+    process.env.PAPERCLIP_HERMES_BRIDGE_ENABLED = "yes";
+    try {
+      assert.equal(resolveBridgeGate({}).enabled, true);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.PAPERCLIP_HERMES_BRIDGE_ENABLED;
+      } else {
+        process.env.PAPERCLIP_HERMES_BRIDGE_ENABLED = previous;
+      }
+    }
   });
 });

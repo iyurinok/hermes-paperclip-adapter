@@ -52,6 +52,14 @@ export const VALID_PROVIDERS = [
   "minimax",
   "minimax-cn",
   "kilocode",
+  // Bloom / Hermes custom + direct providers (config.yaml `providers:`)
+  "litellm",
+  "xai-oauth",
+  "xai",
+  "custom",
+  "openai",
+  "google",
+  "gemini",
 ] as const;
 
 /**
@@ -63,6 +71,17 @@ export const VALID_PROVIDERS = [
  * Longer prefixes are matched first (order matters).
  */
 export const MODEL_PREFIX_PROVIDER_HINTS: [string, string][] = [
+  // Bloom LiteLLM purpose aliases
+  ["flagship", "litellm"],
+  ["coding", "litellm"],
+  ["default", "litellm"],
+  ["fast", "litellm"],
+  ["thinking", "litellm"],
+  ["cheap", "litellm"],
+  ["free", "litellm"],
+  // xAI / Grok
+  ["grok-", "xai-oauth"],
+  ["grok", "xai-oauth"],
   // OpenAI-native models
   ["gpt-4", "openai-codex"],
   ["gpt-5", "copilot"],

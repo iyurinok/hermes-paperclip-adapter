@@ -128,6 +128,10 @@ export function inferProviderFromModel(model: string): string | undefined {
  * Always returns a valid provider string.
  * The `resolvedFrom` field indicates which source was used, useful for logging.
  */
+function isProviderName(value: string | null | undefined): value is string {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9._-]{0,63}$/i.test(value.trim());
+}
+
 export function resolveProvider(options: {
   /** Explicit provider from adapterConfig (user override) */
   explicitProvider?: string | null;
@@ -140,22 +144,22 @@ export function resolveProvider(options: {
 }): { provider: string; resolvedFrom: string } {
   const { explicitProvider, detectedProvider, detectedModel, model } = options;
 
-  // 1. Explicit provider from adapterConfig — user override, always wins
-  if (explicitProvider && (VALID_PROVIDERS as readonly string[]).includes(explicitProvider)) {
-    return { provider: explicitProvider, resolvedFrom: "adapterConfig" };
+  // 1. Explicit provider from adapterConfig — always wins.
+  // Hermes accepts built-ins AND config.yaml custom provider names (litellm, xai-oauth).
+  if (isProviderName(explicitProvider)) {
+    return { provider: explicitProvider.trim(), resolvedFrom: "adapterConfig" };
   }
 
   // 2. Provider from Hermes config file — but ONLY if the config model matches
   //    the requested model. Otherwise the config provider is for a different model
   //    and would cause exactly the kind of routing bug we're fixing.
   if (
-    detectedProvider &&
+    isProviderName(detectedProvider) &&
     detectedModel &&
-    (VALID_PROVIDERS as readonly string[]).includes(detectedProvider) &&
     // Config model matches requested model (exact or case-insensitive)
     detectedModel.toLowerCase() === model?.toLowerCase()
   ) {
-    return { provider: detectedProvider, resolvedFrom: "hermesConfig" };
+    return { provider: detectedProvider.trim(), resolvedFrom: "hermesConfig" };
   }
 
   // 3. Infer from model name prefix
